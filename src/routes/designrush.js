@@ -50,8 +50,9 @@ export async function designrushHandler({ page }) {
 
       return {
         name,
-        profileUrl,
+        // profileUrl,
         websiteUrl,
+        location,
         source: "designrush",
         category: "video-production",
       }

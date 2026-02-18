@@ -20,7 +20,6 @@ export async function clutchHandler({ page }) {
       return {
         name,
         website,
-        website,
         location,
         source: "clutch",
         category: "video-production",

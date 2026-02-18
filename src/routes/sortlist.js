@@ -24,7 +24,6 @@ export async function sortlistHandler({ page }) {
       return {
         name,
         profileUrl: profileUrl ? `https://www.sortlist.com${profileUrl}` : null,
-        profileUrl: profileUrl ? `https://www.sortlist.com${profileUrl}` : null,
         location,
         source: "sortlist",
         category: "video-production",

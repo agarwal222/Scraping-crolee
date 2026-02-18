@@ -12,8 +12,8 @@ export async function insertLeads(leads) {
     if (!lead.website) continue
 
     await pg.query(
-      `INSERT INTO leads (company_name, website, URL, location, source)
-       VALUES ($1,$2,$3,$4,$5)
+      `INSERT INTO leads (company_name, website, location, source)
+       VALUES ($1,$2,$3,$4)
        ON CONFLICT (website) DO NOTHING`,
       [lead.name, lead.website, lead.location, lead.source],
     )

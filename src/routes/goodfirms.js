@@ -42,8 +42,9 @@ export async function goodfirmsHandler({ page }) {
 
       return {
         name,
-        profileUrl,
+        // profileUrl,
         websiteUrl,
+        location,
         source: "goodfirms",
         category: "advertising",
       }
