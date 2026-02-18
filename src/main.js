@@ -55,14 +55,14 @@ function buildUrls({ source, category, startPage, endPage }) {
 
       case "DESIGNRUSH":
         urls.push({
-          url: `https://www.designrush.com/agency/${category}?page=${page}`,
+          url: `ttps://www.designrush.com/${category}&page=${page}`,
           label: "DESIGNRUSH",
         })
         break
 
       case "GOODFIRMS":
         urls.push({
-          url: `https://www.goodfirms.co/directory/marketing-services/${category}?page=${page}`,
+          url: `https://www.goodfirms.co/${category}?page=${page}`,
           label: "GOODFIRMS",
         })
         break
