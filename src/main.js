@@ -10,11 +10,16 @@ import { sortlistHandler } from "./routes/sortlist.js"
 const app = express()
 app.use(express.json())
 
+// ===============================
+// STATE
+// ===============================
 let pendingJobs = []
 let debounceTimer = null
 let isRunning = false
 
-// ---------- BLOCK DETECTION ----------
+// ===============================
+// BLOCK DETECTION
+// ===============================
 async function detectBlock(page) {
   const title = await page.title()
 
@@ -24,7 +29,7 @@ async function detectBlock(page) {
     title.includes("Attention Required") ||
     title.includes("Cloudflare")
   ) {
-    return "Cloudflare or Access Denied"
+    return "Cloudflare / Access Denied"
   }
 
   const captcha = await page.$('iframe[src*="captcha"]')
@@ -33,12 +38,57 @@ async function detectBlock(page) {
   return null
 }
 
-// ---------- ROUTER ----------
-async function routeHandler({ page, request, crawler }) {
-  const label = request.userData.label
+// ===============================
+// BUILD URLS FROM N8N JOB
+// ===============================
+function buildUrls({ source, category, startPage, endPage }) {
+  const urls = []
 
+  for (let page = startPage; page <= endPage; page++) {
+    switch (source) {
+      case "CLUTCH":
+        urls.push({
+          url: `https://clutch.co/agencies/${category}?page=${page}`,
+          label: "CLUTCH",
+        })
+        break
+
+      case "DESIGNRUSH":
+        urls.push({
+          url: `https://www.designrush.com/agency/${category}?page=${page}`,
+          label: "DESIGNRUSH",
+        })
+        break
+
+      case "GOODFIRMS":
+        urls.push({
+          url: `https://www.goodfirms.co/directory/marketing-services/${category}?page=${page}`,
+          label: "GOODFIRMS",
+        })
+        break
+
+      case "SORTLIST":
+        urls.push({
+          url: `https://www.sortlist.com/${category}?page=${page}`,
+          label: "SORTLIST",
+        })
+        break
+
+      default:
+        console.log(`[WARN] Unknown source ${source}`)
+    }
+  }
+
+  return urls
+}
+
+// ===============================
+// ROUTER
+// ===============================
+async function routeHandler({ page, request }) {
   try {
     const blocked = await detectBlock(page)
+
     if (blocked) {
       console.log(`[BLOCKED] ${request.url} → ${blocked}`)
       return []
@@ -46,25 +96,25 @@ async function routeHandler({ page, request, crawler }) {
 
     let leads = []
 
-    switch (label) {
+    switch (request.userData.label) {
       case "CLUTCH":
-        leads = await clutchHandler({ page, request, crawler })
+        leads = await clutchHandler({ page })
         break
 
       case "DESIGNRUSH":
-        leads = await designrushHandler({ page, request, crawler })
+        leads = await designrushHandler({ page })
         break
 
       case "GOODFIRMS":
-        leads = await goodfirmsHandler({ page, request, crawler })
+        leads = await goodfirmsHandler({ page })
         break
 
       case "SORTLIST":
-        leads = await sortlistHandler({ page, request, crawler })
+        leads = await sortlistHandler({ page })
         break
 
       default:
-        console.log(`[WARN] Unknown label ${label}`)
+        console.log(`[WARN] Unknown label ${request.userData.label}`)
         return []
     }
 
@@ -83,7 +133,9 @@ async function routeHandler({ page, request, crawler }) {
   }
 }
 
-// ---------- RUNNER ----------
+// ===============================
+// RUNNER
+// ===============================
 async function runCrawler() {
   if (isRunning || pendingJobs.length === 0) return
 
@@ -92,7 +144,7 @@ async function runCrawler() {
   const jobsToRun = [...pendingJobs]
   pendingJobs = []
 
-  console.log(`Starting crawler with ${jobsToRun.length} jobs`)
+  console.log(`Starting crawler with ${jobsToRun.length} pages`)
 
   const crawler = new PlaywrightCrawler({
     maxConcurrency: 1,
@@ -118,7 +170,9 @@ async function runCrawler() {
   isRunning = false
 }
 
-// ---------- DEBOUNCE ----------
+// ===============================
+// DEBOUNCE EXECUTION
+// ===============================
 function scheduleRun() {
   if (debounceTimer) clearTimeout(debounceTimer)
 
@@ -127,17 +181,33 @@ function scheduleRun() {
   }, 20000)
 }
 
-// ---------- API ----------
+// ===============================
+// API FOR N8N
+// ===============================
 app.post("/job", (req, res) => {
-  const { url, label } = req.body
+  const { jobs } = req.body
 
-  pendingJobs.push({ url, label })
+  if (!Array.isArray(jobs)) {
+    return res.status(400).json({
+      error: "jobs must be an array",
+    })
+  }
 
-  console.log(`[QUEUED] ${label} → ${url}`)
+  let added = 0
 
+  for (const job of jobs) {
+    const expanded = buildUrls(job)
+    pendingJobs.push(...expanded)
+    added += expanded.length
+  }
+
+  console.log(`[QUEUED] ${added} pages queued`)
   scheduleRun()
 
-  res.send({ status: "queued" })
+  res.json({
+    status: "queued",
+    pages: added,
+  })
 })
 
 app.listen(3000, () => {

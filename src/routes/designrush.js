@@ -1,30 +1,38 @@
-export async function designrushHandler({ page, request, crawler }) {
-  await page.waitForSelector(".agency-card")
-
-  const leads = await page.$$eval(".agency-card", (cards) =>
-    cards.map((card) => ({
-      name: card.querySelector(".agency-card__title")?.innerText?.trim(),
-      website: card.querySelector("a.agency-card__visit-btn")?.href,
-      location: card.querySelector(".agency-card__location")?.innerText?.trim(),
-      source: "designrush",
-      category: "video-production",
-    })),
-  )
-
-  // pagination
-  const nextPage = await page.$('a[rel="next"]')
-  if (nextPage) {
-    const nextUrl = await nextPage.getAttribute("href")
-
-    await crawler.addRequests([
-      {
-        url: new URL(nextUrl, request.url).href,
-        userData: { label: "DESIGNRUSH" },
-      },
-    ])
+export async function designrushHandler({ page }) {
+  try {
+    // wait until cards are visible
+    await page.waitForSelector(".agency-card", {
+      timeout: 15000,
+    })
+  } catch (err) {
+    console.log("[DESIGNRUSH] No agency cards found")
+    return []
   }
 
-  await page.waitForTimeout(3000 + Math.random() * 3000)
+  const leads = await page.$$eval(".agency-card", (cards) =>
+    cards.map((card) => {
+      const name = card.querySelector(".agency-card__title")?.innerText?.trim()
 
-  return leads.filter((l) => l.website)
+      const website = card.querySelector("a.agency-card__visit-btn")?.href
+
+      const location = card
+        .querySelector(".agency-card__location")
+        ?.innerText?.trim()
+
+      return {
+        name,
+        website,
+        location,
+        source: "designrush",
+        category: "video-production",
+      }
+    }),
+  )
+
+  // clean invalid rows
+  const cleaned = leads.filter(
+    (l) => l.website && l.website.startsWith("http") && l.name,
+  )
+
+  return cleaned
 }

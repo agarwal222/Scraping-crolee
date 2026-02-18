@@ -1,30 +1,38 @@
-export async function sortlistHandler({ page, request, crawler }) {
-  await page.waitForSelector(".provider-card")
-
-  const leads = await page.$$eval(".provider-card", (cards) =>
-    cards.map((card) => ({
-      name: card.querySelector(".provider-name")?.innerText?.trim(),
-      website: card.querySelector("a.visit-website")?.href,
-      location: card.querySelector(".provider-location")?.innerText?.trim(),
-      source: "sortlist",
-      category: "video-production",
-    })),
-  )
-
-  // pagination
-  const nextPage = await page.$('a[rel="next"]')
-  if (nextPage) {
-    const nextUrl = await nextPage.getAttribute("href")
-
-    await crawler.addRequests([
-      {
-        url: new URL(nextUrl, request.url).href,
-        userData: { label: "SORTLIST" },
-      },
-    ])
+export async function sortlistHandler({ page }) {
+  try {
+    // wait for agency cards
+    await page.waitForSelector(".provider-card", {
+      timeout: 15000,
+    })
+  } catch (err) {
+    console.log("[SORTLIST] No provider cards found")
+    return []
   }
 
-  await page.waitForTimeout(3000 + Math.random() * 3000)
+  const leads = await page.$$eval(".provider-card", (cards) =>
+    cards.map((card) => {
+      const name = card.querySelector(".provider-name")?.innerText?.trim()
 
-  return leads.filter((l) => l.website)
+      const website = card.querySelector("a.visit-website")?.href
+
+      const location = card
+        .querySelector(".provider-location")
+        ?.innerText?.trim()
+
+      return {
+        name,
+        website,
+        location,
+        source: "sortlist",
+        category: "video-production",
+      }
+    }),
+  )
+
+  // clean invalid entries
+  const cleaned = leads.filter(
+    (l) => l.website && l.website.startsWith("http") && l.name,
+  )
+
+  return cleaned
 }
