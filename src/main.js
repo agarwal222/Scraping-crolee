@@ -1,4 +1,4 @@
-import { PlaywrightCrawler } from "crawlee"
+import { PlaywrightCrawler, RequestQueue } from "crawlee"
 import express from "express"
 import { insertLeads } from "./db.js"
 import { clutchHandler } from "./routes/clutch.js"
@@ -6,7 +6,10 @@ import { clutchHandler } from "./routes/clutch.js"
 const app = express()
 app.use(express.json())
 
+const requestQueue = await RequestQueue.open()
+
 const crawler = new PlaywrightCrawler({
+  requestQueue,
   maxConcurrency: 1,
 
   async requestHandler({ page, request }) {
@@ -19,29 +22,22 @@ const crawler = new PlaywrightCrawler({
     }
 
     await insertLeads(leads)
-
     console.log(`Inserted ${leads.length} leads`)
   },
 })
 
+// 🚀 start crawler once and keep alive
+crawler.run()
+
 console.log("Crawler ready...")
 
-/**
- * HTTP endpoint for n8n
- */
 app.post("/job", async (req, res) => {
   const { url, label } = req.body
 
-  if (!url || !label) {
-    return res.status(400).send("Missing url or label")
-  }
-
-  await crawler.addRequests([
-    {
-      url,
-      userData: { label },
-    },
-  ])
+  await requestQueue.addRequest({
+    url,
+    userData: { label },
+  })
 
   console.log("Job added:", url)
 
