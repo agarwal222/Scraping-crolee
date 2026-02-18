@@ -1,4 +1,4 @@
-import { PlaywrightCrawler, RequestQueue } from "crawlee"
+import { PlaywrightCrawler } from "crawlee"
 import express from "express"
 import { insertLeads } from "./db.js"
 import { clutchHandler } from "./routes/clutch.js"
@@ -6,53 +6,60 @@ import { clutchHandler } from "./routes/clutch.js"
 const app = express()
 app.use(express.json())
 
-const requestQueue = await RequestQueue.open()
+let pendingJobs = []
+let debounceTimer = null
+let isRunning = false
 
-const crawler = new PlaywrightCrawler({
-  requestQueue,
-  maxConcurrency: 1,
+async function runCrawler() {
+  if (isRunning || pendingJobs.length === 0) return
 
-  async requestHandler({ page, request }) {
-    console.log("Processing:", request.url)
+  isRunning = true
 
-    let leads = []
+  const jobsToRun = [...pendingJobs]
+  pendingJobs = []
 
-    if (request.userData.label === "CLUTCH") {
-      leads = await clutchHandler({ page })
-    }
+  console.log(`Starting crawler with ${jobsToRun.length} jobs`)
 
-    await insertLeads(leads)
-    console.log(`Inserted ${leads.length} leads`)
-  },
-})
+  const crawler = new PlaywrightCrawler({
+    maxConcurrency: 1,
 
-console.log("Crawler ready...")
-async function startCrawlerLoop() {
-  while (true) {
-    console.log("Crawler waiting for jobs...")
-
-    await crawler.run()
-
-    // wait before checking queue again
-    await new Promise((r) => setTimeout(r, 5000))
-  }
-}
-
-startCrawlerLoop()
-
-app.post("/job", async (req, res) => {
-  const { url, label } = req.body
-
-  await requestQueue.addRequest({
-    url,
-    userData: { label },
+    async requestHandler({ page, request }) {
+      const leads = await clutchHandler({ page })
+      await insertLeads(leads)
+    },
   })
 
-  console.log("Job added:", url)
+  await crawler.run(
+    jobsToRun.map((job) => ({
+      url: job.url,
+      userData: { label: job.label },
+    })),
+  )
+
+  console.log("Crawler finished")
+  isRunning = false
+}
+
+function scheduleRun() {
+  if (debounceTimer) clearTimeout(debounceTimer)
+
+  debounceTimer = setTimeout(() => {
+    runCrawler()
+  }, 20000) // wait 20 seconds after last job
+}
+
+app.post("/job", (req, res) => {
+  const { url, label } = req.body
+
+  pendingJobs.push({ url, label })
+
+  console.log("Job queued:", url)
+
+  scheduleRun()
 
   res.send({ status: "queued" })
 })
 
 app.listen(3000, () => {
-  console.log("Worker listening on port 3000")
+  console.log("Crawler ready on port 3000")
 })
