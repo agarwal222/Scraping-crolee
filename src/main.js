@@ -26,10 +26,19 @@ const crawler = new PlaywrightCrawler({
   },
 })
 
-// 🚀 start crawler once and keep alive
-crawler.run()
-
 console.log("Crawler ready...")
+async function startCrawlerLoop() {
+  while (true) {
+    console.log("Crawler waiting for jobs...")
+
+    await crawler.run()
+
+    // wait before checking queue again
+    await new Promise((r) => setTimeout(r, 5000))
+  }
+}
+
+startCrawlerLoop()
 
 app.post("/job", async (req, res) => {
   const { url, label } = req.body
